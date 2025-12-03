@@ -50,9 +50,14 @@ class ImageService {
   /// - Unknown: Unexpected errors
   Future<ImageResponse> fetchRandomImage() async {
     try {
+      //Comment intentionally left to visually test out slower network calls.
+      // await Future.delayed(Duration(seconds: 2));
       final response = await _client
           .get(Uri.parse(apiEndpoint))
           .timeout(const Duration(seconds: 10));
+
+      //Comment intentionally left to visually test out error thrown from API.
+      // throw TimeoutException('party in the house');
 
       if (response.statusCode != 200) {
         throw ImageServiceException(

@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import 'services/image_service.dart';
@@ -45,38 +46,101 @@ class _MyHomePageState extends State<MyHomePage> {
   ImageDisplayState _currentState = ImageDisplayState.loading;
   String? _imageUrl;
   String? _errorMessage;
+  bool _isLoadingNext = false;
   final ImageService _imageService = ImageService();
 
   @override
   void initState() {
     super.initState();
     // Automatically fetch an image when the app starts
-    _fetchAndDisplayImage();
+    // Use addPostFrameCallback to ensure ScaffoldMessenger is available
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchAndDisplayImage();
+    });
   }
 
-  /// Fetches a random image URL from the server and updates the UI state
   Future<void> _fetchAndDisplayImage() async {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+    final hasCurrentImage = _imageUrl != null;
+
     setState(() {
       _currentState = ImageDisplayState.loading;
+      _isLoadingNext = hasCurrentImage;
       _errorMessage = null;
     });
 
     try {
       final response = await _imageService.fetchRandomImage();
-      setState(() {
-        _currentState = ImageDisplayState.success;
-        _imageUrl = response.url;
-      });
+      final newImageUrl = response.url;
+
+      if (!mounted) return;
+
+      try {
+        await precacheImage(
+          CachedNetworkImageProvider(newImageUrl),
+          context,
+        );
+      } catch (imageError) {
+        throw ImageServiceException(
+          type: ImageServiceError.invalidResponse,
+          message: 'Server returned invalid image URL.',
+          originalError: imageError,
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          _currentState = ImageDisplayState.success;
+          _imageUrl = newImageUrl;
+          _isLoadingNext = false;
+        });
+      }
     } on ImageServiceException catch (e) {
-      setState(() {
-        _currentState = ImageDisplayState.error;
-        _errorMessage = e.message;
-      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Another image failed to load.'),
+            duration: Duration(seconds: 4),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          if (hasCurrentImage) {
+            _currentState = ImageDisplayState.success;
+          } else {
+            _currentState = ImageDisplayState.error;
+          }
+          _errorMessage = e.message;
+          _isLoadingNext = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _currentState = ImageDisplayState.error;
-        _errorMessage = 'An unexpected error occurred';
-      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content:
+                Text('Another image failed to load. Please try again later'),
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          if (hasCurrentImage) {
+            _currentState = ImageDisplayState.success;
+          } else {
+            _currentState = ImageDisplayState.error;
+          }
+          _errorMessage = 'An unexpected error occurred';
+          _isLoadingNext = false;
+        });
+      }
     }
   }
 
@@ -91,32 +155,38 @@ class _MyHomePageState extends State<MyHomePage> {
               state: _currentState,
               imageUrl: _imageUrl,
               errorMessage: _errorMessage,
+              isLoadingNextImage: _isLoadingNext,
             ),
             const SizedBox(height: 32),
-            ElevatedButton(
-              onPressed: _currentState == ImageDisplayState.loading
-                  ? null
-                  : _fetchAndDisplayImage,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 48,
-                  vertical: 16,
+            Visibility(
+              visible:
+                  _imageUrl != null || _currentState == ImageDisplayState.error,
+              maintainSize: true,
+              maintainAnimation: true,
+              maintainState: true,
+              child: ElevatedButton(
+                onPressed: _currentState == ImageDisplayState.loading
+                    ? null
+                    : _fetchAndDisplayImage,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 48,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(
+                      color: Theme.of(context).colorScheme.outline,
+                      width: 2,
+                    ),
+                  ),
                 ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                child: Text(
+                  _currentState == ImageDisplayState.error
+                      ? 'Try Again'
+                      : 'Another',
                 ),
               ),
-              child: _currentState == ImageDisplayState.loading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(
-                      _currentState == ImageDisplayState.error
-                          ? 'Try Again'
-                          : 'Another',
-                    ),
             ),
           ],
         ),

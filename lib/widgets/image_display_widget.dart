@@ -12,12 +12,14 @@ class ImageDisplayWidget extends StatelessWidget {
   final ImageDisplayState state;
   final String? imageUrl;
   final String? errorMessage;
+  final bool isLoadingNextImage;
 
   const ImageDisplayWidget({
     super.key,
     required this.state,
     this.imageUrl,
     this.errorMessage,
+    this.isLoadingNextImage = false,
   });
 
   @override
@@ -46,11 +48,22 @@ class ImageDisplayWidget extends StatelessWidget {
   }
 
   Widget _buildContent(BuildContext context) {
+    if (isLoadingNextImage && imageUrl != null) {
+      return Stack(
+        children: [
+          _buildImage(context),
+          Positioned.fill(
+            child: _buildLoadingIndicator(),
+          ),
+        ],
+      );
+    }
+
     switch (state) {
       case ImageDisplayState.idle:
         return _buildPlaceholder(context);
       case ImageDisplayState.loading:
-        return _buildLoadingIndicator(context);
+        return _buildLoadingIndicator();
       case ImageDisplayState.success:
         return _buildImage(context);
       case ImageDisplayState.error:
@@ -73,10 +86,16 @@ class ImageDisplayWidget extends StatelessWidget {
     );
   }
 
-  /// Builds the loading state indicator
-  Widget _buildLoadingIndicator(BuildContext context) {
-    return const Center(
-      child: CircularProgressIndicator(),
+  Widget _buildLoadingIndicator() {
+    return Container(
+      height: 30,
+      width: 30,
+      color: Colors.black.withValues(alpha: 0.6),
+      child: const Center(
+        child: CircularProgressIndicator(
+          color: Colors.white,
+        ),
+      ),
     );
   }
 
@@ -90,64 +109,42 @@ class ImageDisplayWidget extends StatelessWidget {
     final imageSize = (screenWidth * 0.85).clamp(200.0, 500.0);
     final errorIconSize = (imageSize * 0.16).clamp(32.0, 64.0);
 
-    return CachedNetworkImage(
-      imageUrl: imageUrl!,
-      fit: BoxFit.cover,
-      placeholder: (context, url) => const Center(
-        child: CircularProgressIndicator(),
-      ),
-      errorWidget: (context, url, error) => Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: errorIconSize,
-              color: Theme.of(context).colorScheme.error,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Failed to load image',
-              style: TextStyle(
+    return SizedBox(
+      width: imageSize,
+      height: imageSize,
+      child: CachedNetworkImage(
+        imageUrl: imageUrl!,
+        fit: BoxFit.cover,
+        placeholder: (context, url) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+        errorWidget: (context, url, error) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.error_outline,
+                size: errorIconSize,
                 color: Theme.of(context).colorScheme.error,
-                fontSize: 14,
               ),
-            ),
-          ],
+              const SizedBox(height: 8),
+              Text(
+                'Failed to load image',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.error,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  /// Builds the error state display
+  /// Builds the error state display (errors shown via SnackBar)
   Widget _buildError(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final imageSize = (screenWidth * 0.85).clamp(200.0, 500.0);
-    final errorIconSize = (imageSize * 0.16).clamp(32.0, 64.0);
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: errorIconSize,
-              color: Theme.of(context).colorScheme.error,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              errorMessage ?? 'An error occurred',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.error,
-                fontSize: 14,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    // Error state shows placeholder icon since errors are displayed via SnackBar
+    return _buildPlaceholder(context);
   }
 }

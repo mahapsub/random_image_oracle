@@ -41,6 +41,9 @@ dependencies:
   # Image caching with memory and disk cache
   cached_network_image: ^3.3.0
 
+  # Lightweight image decoding for palette extraction
+  image: ^4.1.7
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

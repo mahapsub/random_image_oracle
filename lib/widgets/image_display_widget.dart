@@ -26,14 +26,17 @@ class ImageDisplayWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final imageSize = (screenWidth * 0.85).clamp(200.0, 500.0);
+    final bool showTransparentBackground =
+        state == ImageDisplayState.success ||
+            (state == ImageDisplayState.loading && isLoadingNextImage);
 
     return Container(
       width: imageSize,
       height: imageSize,
       decoration: BoxDecoration(
-        color: state == ImageDisplayState.success
+        color: showTransparentBackground
             ? null
-            : Theme.of(context).colorScheme.surfaceContainerHighest,
+            : Theme.of(context).scaffoldBackgroundColor,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: Theme.of(context).colorScheme.outline,
@@ -48,22 +51,13 @@ class ImageDisplayWidget extends StatelessWidget {
   }
 
   Widget _buildContent(BuildContext context) {
-    if (isLoadingNextImage && imageUrl != null) {
-      return Stack(
-        children: [
-          _buildImage(context),
-          Positioned.fill(
-            child: _buildLoadingIndicator(),
-          ),
-        ],
-      );
-    }
-
     switch (state) {
       case ImageDisplayState.idle:
         return _buildPlaceholder(context);
       case ImageDisplayState.loading:
-        return _buildLoadingIndicator();
+        return isLoadingNextImage && imageUrl != null
+            ? _buildImage(context)
+            : _buildLoadingIndicator();
       case ImageDisplayState.success:
         return _buildImage(context);
       case ImageDisplayState.error:
@@ -87,14 +81,11 @@ class ImageDisplayWidget extends StatelessWidget {
   }
 
   Widget _buildLoadingIndicator() {
-    return Container(
-      height: 30,
-      width: 30,
-      color: Colors.black.withValues(alpha: 0.6),
-      child: const Center(
-        child: CircularProgressIndicator(
-          color: Colors.white,
-        ),
+    return const Center(
+      child: SizedBox(
+        height: 30,
+        width: 30,
+        child: CircularProgressIndicator(),
       ),
     );
   }
@@ -109,33 +100,62 @@ class ImageDisplayWidget extends StatelessWidget {
     final imageSize = (screenWidth * 0.85).clamp(200.0, 500.0);
     final errorIconSize = (imageSize * 0.16).clamp(32.0, 64.0);
 
-    return SizedBox(
-      width: imageSize,
-      height: imageSize,
-      child: CachedNetworkImage(
-        imageUrl: imageUrl!,
-        fit: BoxFit.cover,
-        placeholder: (context, url) => const Center(
-          child: CircularProgressIndicator(),
-        ),
-        errorWidget: (context, url, error) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.error_outline,
-                size: errorIconSize,
-                color: Theme.of(context).colorScheme.error,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Failed to load image',
-                style: TextStyle(
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) {
+        final fadeAnimation = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeIn,
+        );
+        final scaleAnimation = Tween<double>(
+          begin: 0.97,
+          end: 1,
+        ).animate(
+          CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          ),
+        );
+
+        return FadeTransition(
+          opacity: fadeAnimation,
+          child: ScaleTransition(
+            scale: scaleAnimation,
+            child: child,
+          ),
+        );
+      },
+      child: SizedBox(
+        key: ValueKey(imageUrl),
+        width: imageSize,
+        height: imageSize,
+        child: CachedNetworkImage(
+          imageUrl: imageUrl!,
+          fit: BoxFit.cover,
+          placeholder: (context, url) => const Center(
+            child: CircularProgressIndicator(),
+          ),
+          errorWidget: (context, url, error) => Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  size: errorIconSize,
                   color: Theme.of(context).colorScheme.error,
-                  fontSize: 14,
                 ),
-              ),
-            ],
+                const SizedBox(height: 8),
+                Text(
+                  'Failed to load image',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.error,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

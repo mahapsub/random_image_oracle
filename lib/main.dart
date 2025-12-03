@@ -173,6 +173,8 @@ class _MyHomePageState extends State<MyHomePage> {
                     horizontal: 48,
                     vertical: 16,
                   ),
+                  fixedSize: const Size(220, 56),
+                  splashFactory: NoSplash.splashFactory,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                     side: BorderSide(
@@ -181,10 +183,30 @@ class _MyHomePageState extends State<MyHomePage> {
                     ),
                   ),
                 ),
-                child: Text(
-                  _currentState == ImageDisplayState.error
-                      ? 'Try Again'
-                      : 'Another',
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  transitionBuilder: (child, animation) {
+                    return FadeTransition(
+                      opacity: animation,
+                      child: child,
+                    );
+                  },
+                  child: _currentState == ImageDisplayState.loading
+                      ? const SizedBox(
+                          key: ValueKey('loading'),
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2.5),
+                        )
+                      : Text(
+                          _currentState == ImageDisplayState.error
+                              ? 'Try Again'
+                              : 'Another',
+                          key: const ValueKey('label'),
+                          textAlign: TextAlign.center,
+                        ),
                 ),
               ),
             ),

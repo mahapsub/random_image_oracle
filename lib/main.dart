@@ -53,6 +53,7 @@ class _MyHomePageState extends State<MyHomePage> {
   String? _imageUrl;
   String? _errorMessage;
   bool _isLoadingNext = false;
+  List<Color> _paletteColors = const [];
   final ImageService _imageService = ImageService();
 
   @override
@@ -63,6 +64,41 @@ class _MyHomePageState extends State<MyHomePage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fetchAndDisplayImage();
     });
+  }
+
+  BoxDecoration _buildBackgroundDecoration(BuildContext context) {
+    final fallback = Theme.of(context).scaffoldBackgroundColor;
+    if (_paletteColors.isEmpty) {
+      return BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            fallback.withOpacity(0.9),
+            fallback,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      );
+    }
+
+    final Color primary = _paletteColors[0];
+    final Color secondary =
+        _paletteColors.length > 1 ? _paletteColors[1] : _paletteColors[0];
+    final Color accent =
+        _paletteColors.length > 2 ? _paletteColors[2] : _paletteColors[0];
+
+    return BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          primary.withOpacity(0.6),
+          secondary.withOpacity(0.5),
+          accent.withOpacity(0.45),
+        ],
+        stops: const [0.0, 0.55, 1.0],
+      ),
+    );
   }
 
   Future<void> _fetchAndDisplayImage() async {
@@ -95,14 +131,19 @@ class _MyHomePageState extends State<MyHomePage> {
         );
       }
 
+      final paletteResult = await _extractPalette(newImageUrl);
+
       if (mounted) {
         setState(() {
           _currentState = ImageDisplayState.success;
           _imageUrl = newImageUrl;
+          _paletteColors = paletteResult.colors;
           _isLoadingNext = false;
         });
 
-        _extractAndLogPalette(newImageUrl);
+        debugPrint(
+          'Palette (${paletteResult.elapsedMs}ms): ${paletteResult.formattedColors}',
+        );
       }
     } on ImageServiceException catch (e) {
       if (mounted) {
@@ -155,76 +196,90 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            ImageDisplayWidget(
-              state: _currentState,
-              imageUrl: _imageUrl,
-              errorMessage: _errorMessage,
-              isLoadingNextImage: _isLoadingNext,
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 450),
+              curve: Curves.easeOutCubic,
+              decoration: _buildBackgroundDecoration(context),
             ),
-            const SizedBox(height: 32),
-            Visibility(
-              visible:
-                  _imageUrl != null || _currentState == ImageDisplayState.error,
-              maintainSize: true,
-              maintainAnimation: true,
-              maintainState: true,
-              child: ElevatedButton(
-                onPressed: _currentState == ImageDisplayState.loading
-                    ? null
-                    : _fetchAndDisplayImage,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 48,
-                    vertical: 16,
-                  ),
-                  fixedSize: const Size(220, 56),
-                  splashFactory: NoSplash.splashFactory,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(
-                      color: Theme.of(context).colorScheme.outline,
-                      width: 2,
+          ),
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                ImageDisplayWidget(
+                  state: _currentState,
+                  imageUrl: _imageUrl,
+                  errorMessage: _errorMessage,
+                  isLoadingNextImage: _isLoadingNext,
+                  paletteColors: _paletteColors,
+                ),
+                const SizedBox(height: 32),
+                Visibility(
+                  visible: _imageUrl != null ||
+                      _currentState == ImageDisplayState.error,
+                  maintainSize: true,
+                  maintainAnimation: true,
+                  maintainState: true,
+                  child: ElevatedButton(
+                    onPressed: _currentState == ImageDisplayState.loading
+                        ? null
+                        : _fetchAndDisplayImage,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 48,
+                        vertical: 16,
+                      ),
+                      fixedSize: const Size(220, 56),
+                      splashFactory: NoSplash.splashFactory,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(
+                          color: Theme.of(context).colorScheme.outline,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      transitionBuilder: (child, animation) {
+                        return FadeTransition(
+                          opacity: animation,
+                          child: child,
+                        );
+                      },
+                      child: _currentState == ImageDisplayState.loading
+                          ? const SizedBox(
+                              key: ValueKey('loading'),
+                              height: 20,
+                              width: 20,
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2.5),
+                            )
+                          : Text(
+                              _currentState == ImageDisplayState.error
+                                  ? 'Try Again'
+                                  : 'Another',
+                              key: const ValueKey('label'),
+                              textAlign: TextAlign.center,
+                            ),
                     ),
                   ),
                 ),
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 200),
-                  switchInCurve: Curves.easeOutCubic,
-                  switchOutCurve: Curves.easeInCubic,
-                  transitionBuilder: (child, animation) {
-                    return FadeTransition(
-                      opacity: animation,
-                      child: child,
-                    );
-                  },
-                  child: _currentState == ImageDisplayState.loading
-                      ? const SizedBox(
-                          key: ValueKey('loading'),
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2.5),
-                        )
-                      : Text(
-                          _currentState == ImageDisplayState.error
-                              ? 'Try Again'
-                              : 'Another',
-                          key: const ValueKey('label'),
-                          textAlign: TextAlign.center,
-                        ),
-                ),
-              ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Future<void> _extractAndLogPalette(String imageUrl) async {
+  Future<_PaletteResult> _extractPalette(String imageUrl) async {
     final stopwatch = Stopwatch()..start();
     try {
       final cacheManager = DefaultCacheManager();
@@ -236,22 +291,37 @@ class _MyHomePageState extends State<MyHomePage> {
       final colors = await compute(_generatePalette, Uint8List.fromList(bytes));
       stopwatch.stop();
 
-      if (colors.isEmpty) {
-        debugPrint(
-          'Palette extraction yielded no colors after ${stopwatch.elapsedMilliseconds}ms',
-        );
-        return;
-      }
-
-      final formatted = colors.map(_formatColorInt).join(', ');
-      debugPrint('Palette (${stopwatch.elapsedMilliseconds}ms): $formatted');
+      final List<Color> palette = colors.map((c) => Color(c)).toList();
+      return _PaletteResult(
+        colors: palette,
+        elapsedMs: stopwatch.elapsedMilliseconds,
+        formattedColors:
+            palette.isEmpty ? 'none' : colors.map(_formatColorInt).join(', '),
+      );
     } catch (e) {
       stopwatch.stop();
       debugPrint(
         'Palette extraction failed after ${stopwatch.elapsedMilliseconds}ms: $e',
       );
+      return _PaletteResult(
+        colors: const [],
+        elapsedMs: stopwatch.elapsedMilliseconds,
+        formattedColors: 'failed',
+      );
     }
   }
+}
+
+class _PaletteResult {
+  _PaletteResult({
+    required this.colors,
+    required this.elapsedMs,
+    required this.formattedColors,
+  });
+
+  final List<Color> colors;
+  final int elapsedMs;
+  final String formattedColors;
 }
 
 List<int> _generatePalette(Uint8List bytes) {

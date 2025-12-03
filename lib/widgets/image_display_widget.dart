@@ -13,6 +13,7 @@ class ImageDisplayWidget extends StatelessWidget {
   final String? imageUrl;
   final String? errorMessage;
   final bool isLoadingNextImage;
+  final List<Color> paletteColors;
 
   const ImageDisplayWidget({
     super.key,
@@ -20,6 +21,7 @@ class ImageDisplayWidget extends StatelessWidget {
     this.imageUrl,
     this.errorMessage,
     this.isLoadingNextImage = false,
+    this.paletteColors = const [],
   });
 
   @override
@@ -27,7 +29,8 @@ class ImageDisplayWidget extends StatelessWidget {
     final screenWidth = MediaQuery.of(context).size.width;
     final imageSize = (screenWidth * 0.85).clamp(200.0, 500.0);
     final bool showTransparentBackground =
-        state == ImageDisplayState.success ||
+        paletteColors.isNotEmpty ||
+            state == ImageDisplayState.success ||
             (state == ImageDisplayState.loading && isLoadingNextImage);
 
     return Container(
@@ -45,7 +48,13 @@ class ImageDisplayWidget extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(6),
-        child: _buildContent(context),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (paletteColors.isNotEmpty) _buildPaletteBackground(),
+            _buildContent(context),
+          ],
+        ),
       ),
     );
   }
@@ -166,5 +175,31 @@ class ImageDisplayWidget extends StatelessWidget {
   Widget _buildError(BuildContext context) {
     // Error state shows placeholder icon since errors are displayed via SnackBar
     return _buildPlaceholder(context);
+  }
+
+  Widget _buildPaletteBackground() {
+    final base = paletteColors;
+    if (base.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final Color primary = base[0];
+    final Color secondary = base.length > 1 ? base[1] : base[0];
+    final Color accent = base.length > 2 ? base[2] : base[0];
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: RadialGradient(
+          center: const Alignment(-0.35, -0.45),
+          radius: 1.25,
+          colors: [
+            primary.withOpacity(0.6),
+            secondary.withOpacity(0.35),
+            accent.withOpacity(0.2),
+          ],
+          stops: const [0, 0.55, 1],
+        ),
+      ),
+    );
   }
 }

@@ -110,7 +110,7 @@ class ImageDisplayWidget extends StatelessWidget {
     final errorIconSize = (imageSize * 0.16).clamp(32.0, 64.0);
 
     return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 200),
+      duration: const Duration(milliseconds: 500),
       switchInCurve: Curves.easeOutCubic,
       switchOutCurve: Curves.easeInCubic,
       transitionBuilder: (child, animation) {

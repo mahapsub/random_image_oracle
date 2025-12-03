@@ -195,6 +195,8 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final Color labelColor = Theme.of(context).colorScheme.primary;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Stack(
@@ -235,6 +237,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       ),
                       fixedSize: const Size(220, 56),
                       splashFactory: NoSplash.splashFactory,
+                      foregroundColor: labelColor,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                         side: BorderSide(
@@ -267,6 +270,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                   : 'Another',
                               key: const ValueKey('label'),
                               textAlign: TextAlign.center,
+                              style: TextStyle(color: labelColor),
                             ),
                     ),
                   ),

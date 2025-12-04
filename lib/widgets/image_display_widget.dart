@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
@@ -8,7 +10,7 @@ enum ImageDisplayState {
   error, // Error occurred
 }
 
-class ImageDisplayWidget extends StatelessWidget {
+class ImageDisplayWidget extends StatefulWidget {
   final ImageDisplayState state;
   final String? imageUrl;
   final String? errorMessage;
@@ -25,46 +27,110 @@ class ImageDisplayWidget extends StatelessWidget {
   });
 
   @override
+  State<ImageDisplayWidget> createState() => _ImageDisplayWidgetState();
+}
+
+class _ImageDisplayWidgetState extends State<ImageDisplayWidget>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _borderController;
+
+  @override
+  void initState() {
+    super.initState();
+    _borderController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 12),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _borderController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final imageSize = (screenWidth * 0.85).clamp(200.0, 500.0);
-    final bool showTransparentBackground =
-        paletteColors.isNotEmpty ||
-            state == ImageDisplayState.success ||
-            (state == ImageDisplayState.loading && isLoadingNextImage);
+    final palette = widget.paletteColors.isNotEmpty
+        ? widget.paletteColors
+        : _fallbackPalette(context);
+    final hasPalette = widget.paletteColors.isNotEmpty;
+    final bool showTransparentBackground = hasPalette ||
+        widget.state == ImageDisplayState.success ||
+        (widget.state == ImageDisplayState.loading &&
+            widget.isLoadingNextImage);
 
-    return Container(
-      width: imageSize,
-      height: imageSize,
-      decoration: BoxDecoration(
-        color: showTransparentBackground
-            ? null
-            : Theme.of(context).scaffoldBackgroundColor,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outline,
-          width: 2,
-        ),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(6),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (paletteColors.isNotEmpty) _buildPaletteBackground(),
-            _buildContent(context),
-          ],
-        ),
-      ),
+    return AnimatedBuilder(
+      animation: _borderController,
+      builder: (context, _) {
+        final double angle = _borderController.value * 2 * math.pi;
+
+        return Container(
+          width: imageSize,
+          height: imageSize,
+          decoration: hasPalette
+              ? BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  gradient: SweepGradient(
+                    startAngle: 0,
+                    endAngle: 2 * math.pi,
+                    transform: GradientRotation(angle),
+                    colors: [
+                      palette[0].withOpacity(0.95),
+                      palette.length > 1
+                          ? palette[1].withOpacity(0.85)
+                          : palette[0].withOpacity(0.85),
+                      palette.length > 2
+                          ? palette[2].withOpacity(0.75)
+                          : palette[0].withOpacity(0.75),
+                      palette[0].withOpacity(0.95),
+                    ],
+                    stops: const [0.0, 0.45, 0.75, 1.0],
+                  ),
+                )
+              : BoxDecoration(
+                  color: Theme.of(context).scaffoldBackgroundColor,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outline,
+                    width: 1.5,
+                  ),
+                ),
+          child: Padding(
+            padding: const EdgeInsets.all(3),
+            child: Container(
+              decoration: BoxDecoration(
+                color: showTransparentBackground
+                    ? null
+                    : Theme.of(context).scaffoldBackgroundColor,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.transparent),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (hasPalette) _buildPaletteBackground(palette),
+                    _buildContent(context),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
   Widget _buildContent(BuildContext context) {
-    switch (state) {
+    switch (widget.state) {
       case ImageDisplayState.idle:
         return _buildPlaceholder(context);
       case ImageDisplayState.loading:
-        return isLoadingNextImage && imageUrl != null
+        return widget.isLoadingNextImage && widget.imageUrl != null
             ? _buildImage(context)
             : _buildLoadingIndicator();
       case ImageDisplayState.success:
@@ -101,7 +167,7 @@ class ImageDisplayWidget extends StatelessWidget {
 
   /// Builds the success state with cached network image
   Widget _buildImage(BuildContext context) {
-    if (imageUrl == null) {
+    if (widget.imageUrl == null) {
       return _buildError(context);
     }
 
@@ -137,11 +203,11 @@ class ImageDisplayWidget extends StatelessWidget {
         );
       },
       child: SizedBox(
-        key: ValueKey(imageUrl),
+        key: ValueKey(widget.imageUrl),
         width: imageSize,
         height: imageSize,
         child: CachedNetworkImage(
-          imageUrl: imageUrl!,
+          imageUrl: widget.imageUrl!,
           fit: BoxFit.cover,
           placeholder: (context, url) => const Center(
             child: CircularProgressIndicator(),
@@ -177,12 +243,7 @@ class ImageDisplayWidget extends StatelessWidget {
     return _buildPlaceholder(context);
   }
 
-  Widget _buildPaletteBackground() {
-    final base = paletteColors;
-    if (base.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
+  Widget _buildPaletteBackground(List<Color> base) {
     final Color primary = base[0];
     final Color secondary = base.length > 1 ? base[1] : base[0];
     final Color accent = base.length > 2 ? base[2] : base[0];
@@ -201,5 +262,14 @@ class ImageDisplayWidget extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  List<Color> _fallbackPalette(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return [
+      scheme.primary,
+      scheme.secondary,
+      scheme.tertiary,
+    ];
   }
 }

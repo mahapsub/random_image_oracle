@@ -125,7 +125,7 @@ class _MyHomePageState extends State<MyHomePage> {
         );
       } catch (imageError) {
         throw ImageServiceException(
-          type: ImageServiceError.invalidResponse,
+          type: ImageServiceError.serverError,
           message: 'Server returned invalid image URL.',
           originalError: imageError,
         );

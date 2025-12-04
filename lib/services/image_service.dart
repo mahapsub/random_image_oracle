@@ -10,20 +10,16 @@ import 'package:random_image_oracle/models/image_response.dart';
 enum ImageServiceError {
   networkError,
   serverError,
-  invalidResponse,
-  unknown,
 }
 
 class ImageServiceException implements Exception {
   final ImageServiceError type;
   final String message;
-  final int? statusCode;
   final dynamic originalError;
 
   ImageServiceException({
     required this.type,
     required this.message,
-    this.statusCode,
     this.originalError,
   });
 
@@ -32,63 +28,31 @@ class ImageServiceException implements Exception {
 }
 
 class ImageService {
-  static final ImageService _instance = ImageService._internal();
-  final http.Client _client = http.Client();
+  static ImageService? _instance;
+  final http.Client _client;
 
-  ImageService._internal();
+  ImageService._internal(this._client);
 
-  factory ImageService() => _instance;
+  factory ImageService({http.Client? client}) {
+    if (client != null) {
+      return ImageService._internal(client);
+    }
+    _instance ??= ImageService._internal(http.Client());
+    return _instance!;
+  }
 
-  /// Fetches a random image URL from the server
-  ///
-  /// Returns [ImageResponse] with the image URL on success.
-  ///
-  /// Throws [ImageServiceException] with appropriate error type and message:
-  /// - NetworkError: No internet connection or request timeout
-  /// - ServerError: Server returned non-200 status code
-  /// - InvalidResponse: JSON parsing failed or invalid data format
-  /// - Unknown: Unexpected errors
   Future<ImageResponse> fetchRandomImage() async {
     try {
-      //Comment intentionally left to visually test out slower network calls.
-      // await Future.delayed(Duration(seconds: 2));
       final response = await _client
           .get(Uri.parse(apiEndpoint))
-          .timeout(const Duration(seconds: 10));
-
-      //Comment intentionally left to visually test out error thrown from API.
-      // throw TimeoutException('party in the house');
+          .timeout(const Duration(seconds: 6));
 
       if (response.statusCode != 200) {
-        throw ImageServiceException(
-          type: ImageServiceError.serverError,
-          message:
-              'Server error (code: ${response.statusCode}). Please try again later.',
-          statusCode: response.statusCode,
-        );
+        throw Exception('Server error: ${response.statusCode}');
       }
 
-      // Parse JSON response
-      final Map<String, dynamic> jsonData;
-      try {
-        jsonData = json.decode(response.body) as Map<String, dynamic>;
-      } catch (e) {
-        throw ImageServiceException(
-          type: ImageServiceError.invalidResponse,
-          message: 'Invalid server response format.',
-          originalError: e,
-        );
-      }
-
-      try {
-        return ImageResponse.fromJson(jsonData);
-      } on FormatException catch (e) {
-        throw ImageServiceException(
-          type: ImageServiceError.invalidResponse,
-          message: 'Server returned invalid image URL.',
-          originalError: e,
-        );
-      }
+      final jsonData = json.decode(response.body) as Map<String, dynamic>;
+      return ImageResponse.fromJson(jsonData);
     } on SocketException catch (e) {
       throw ImageServiceException(
         type: ImageServiceError.networkError,
@@ -101,12 +65,10 @@ class ImageService {
         message: 'Request timed out. Please try again.',
         originalError: e,
       );
-    } on ImageServiceException {
-      rethrow;
     } catch (e) {
       throw ImageServiceException(
-        type: ImageServiceError.unknown,
-        message: 'An unexpected error occurred.',
+        type: ImageServiceError.serverError,
+        message: 'Unable to fetch image. Please try again.',
         originalError: e,
       );
     }
